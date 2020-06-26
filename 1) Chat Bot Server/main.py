@@ -16,7 +16,7 @@ from threading import Thread
 
 # --------------------  НАСТРОЙКИ  ---------------------
 # -- Telegram  
-Token = '*******************'
+Token = '*****'
 
 # -- Programm
 DataDir = 'data/' 
@@ -26,11 +26,11 @@ WelcomeSpeach = "Здравствуйте! \nЯ помогу вам ориент
 HostSMTP = 'smtp.yandex.ru'
 EmailSMTP = 'bbccaa@ya.ru'
 LoginSMTP = 'bbccaa'
-PasswordSMTP = '***********************'
+PasswordSMTP = '*****'
 ToEmailsSMTP = ['bbccaa@ya.ru', 'slimrg@ya.ru']
 
 # -- Логирование
-UseLogThread = True
+UseLogThread = False
 LogFilePath = 'AIBugLogger.txt'
 # ------------------------------------------------------
 
@@ -152,9 +152,11 @@ def askBug(update, context):
     with tempfile.TemporaryDirectory() as temp:
         if (photo_ext == 'jpg'):
             photo_file.download(os.path.join(temp, 'bug.jpg'))
-        else:
+        elif (photo_ext in ['bmp', 'tiff', 'tif', 'gif', 'jpeg', 'png']):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'bug.jpg'),"JPEG")
+        else:
+            return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
         Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
@@ -179,9 +181,11 @@ def askPlant(update, context):
     with tempfile.TemporaryDirectory() as temp:
         if (photo_ext == 'jpg'):
             photo_file.download(os.path.join(temp, 'plant.jpg'))
-        else:
+        elif (photo_ext in ['bmp', 'tiff', 'tif', 'gif', 'jpeg', 'png']):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'plant.jpg'),"JPEG")
+        else:
+            return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
         Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
@@ -206,9 +210,11 @@ def askBite(update, context):
     with tempfile.TemporaryDirectory() as temp:
         if (photo_ext == 'jpg'):
             photo_file.download(os.path.join(temp, 'bite.jpg'))
-        else:
+        elif (photo_ext in ['bmp', 'tiff', 'tif', 'gif', 'jpeg', 'png']):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'bite.jpg'),"JPEG")
+        else:
+            return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
         Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
