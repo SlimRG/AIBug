@@ -11,8 +11,9 @@ from configparser import ConfigParser
 from PIL import Image
 from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton)
 from telegram.ext import (Updater, CallbackQueryHandler, CommandHandler, ConversationHandler, MessageHandler, Filters, ConversationHandler, CallbackQueryHandler)
-from datetime import datetime
+from datetime import date, datetime
 from threading import Thread
+from pathlib import Path
 
 # --------------------  НАСТРОЙКИ  ---------------------
 # -- Telegram  
@@ -26,15 +27,36 @@ WelcomeSpeach = "Здравствуйте! \nЯ помогу вам ориент
 HostSMTP = 'smtp.yandex.ru'
 EmailSMTP = 'bbccaa@ya.ru'
 LoginSMTP = 'bbccaa'
-PasswordSMTP = '*****'
+PasswordSMTP = '******'
 ToEmailsSMTP = ['bbccaa@ya.ru', 'slimrg@ya.ru']
 
-# -- Логирование
-UseLogThread = False
-LogFilePath = 'AIBugLogger.txt'
+# -- Logging
+UseLogThread = True
+LogFilePath = 'logs'
+RemoveLogsAfter = 7; # Days
 # ------------------------------------------------------
 
+# Автоочистка
+def del_old_files(path, min_days=3, recursive=False):
+    p = Path(path)
+    glob_pattern = "**/*" if recursive else "*"
+    for f in p.glob(glob_pattern):
+        if (f.is_file()
+            and
+            (datetime.now() - datetime.fromtimestamp(f.stat().st_ctime)).days >= min_days):
+            f.unlink()
+del_old_files(LogFilePath, 3, True)
+
 # Логирование
+if not os.path.exists(LogFilePath):
+    os.makedirs(LogFilePath)
+LogPath = os.path.join(LogFilePath, str(date.today())+'-'+str(datetime.now().hour)+'-'+str(datetime.now().minute)+'-'+str(datetime.now().second)+'_log.txt')
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+                    level=logging.INFO, 
+                    filename=LogPath)
+logger = logging.getLogger(__name__)
+
+# Логирование в консоли
 class LogThread(Thread):
     def __init__(self):
             Thread.__init__(self)
@@ -42,15 +64,11 @@ class LogThread(Thread):
     
     def run(self):
         while True:
-                with open(LogFilePath, 'r') as file:
+                with open(LogPath, 'r') as file:
                     read_file = file.read()
                     os.system('cls||clear')
                     print(read_file)
                     time.sleep(60)
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO, filename=LogFilePath)
-logger = logging.getLogger(__name__)
-
 if UseLogThread:
     LogThread = LogThread()
     LogThread.start()
@@ -106,6 +124,7 @@ def process_underconstruction(update, context):
     query = update.callback_query
     chat_id = update.effective_chat.id
     context.bot.send_message(chat_id, 'Данная функция временно в разработке! \nПожалуйста, воспользуйтесь предложенным списком')
+    logger.warn('Using underconstruction functions by "%s", in context "%s"' % (update.message.from_user.name, context))
     time.sleep(5)
     return startCommand(update, context)
 
@@ -156,6 +175,7 @@ def askBug(update, context):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'bug.jpg'),"JPEG")
         else:
+            logger.error('Unknown photo format "%s" by user "%s"' % (photo_ext, update.message.from_user.name))
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
@@ -185,6 +205,7 @@ def askPlant(update, context):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'plant.jpg'),"JPEG")
         else:
+            logger.error('Unknown photo format "%s" by user "%s"' % (photo_ext, update.message.from_user.name))
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
@@ -214,6 +235,7 @@ def askBite(update, context):
             photo_file.download(os.path.join(temp, photo_name))
             Image.open(os.path.join(temp, photo_name)).convert('RGB').save(os.path.join(temp, 'bite.jpg'),"JPEG")
         else:
+            logger.error('Unknown photo format "%s" by user "%s"' % (photo_ext, update.message.from_user.name))
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
@@ -275,5 +297,3 @@ updater.start_polling(clean=True)
 
 # Останавливаем бота, если были нажаты Ctrl + C
 updater.idle()
-
-
