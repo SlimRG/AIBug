@@ -1,6 +1,7 @@
 # Библиотеки
 import logging
 import os
+import re
 import smtplib
 import sys
 import telegram
@@ -31,9 +32,12 @@ PasswordSMTP = '*****'
 ToEmailsSMTP = ['bbccaa@ya.ru', 'slimrg@ya.ru']
 
 # -- Logging
-UseLogThread = True
+UseLogThread = False
 LogFilePath = 'logs'
 RemoveLogsAfter = 7; # Days
+
+# -- DataBase 
+DBFolder = 'dictionaries'
 # ------------------------------------------------------
 
 # Автоочистка
@@ -73,12 +77,72 @@ if UseLogThread:
     LogThread = LogThread()
     LogThread.start()
 
+# Получение списка баз данных (насекомые)
+DBBugs = []
+DBBugsPath = os.path.join(DBFolder, 'bugs')
+for something in os.listdir(DBBugsPath):
+    if os.path.isdir(os.path.join(DBBugsPath, something)):
+        DBBugs.append(something)
+
+DBBites = []
+DBBitesPath = os.path.join(DBFolder, 'bites')
+for something in os.listdir(DBBitesPath):
+    if os.path.isdir(os.path.join(DBBitesPath, something)):
+        DBBites.append(something)
+
+logger.info('Bugs:  '+ str(DBBugs))      
+logger.info('Bites: '+ str(DBBites))
+
 # Авторизация
 updater = Updater(token=Token, use_context=True) 
 dispatcher = updater.dispatcher
 logger.info('Bot service authorized('+Token+')')
 
+# Парсинг БД
+def send_info(update, context, maindir, mainfile):
+    query = update.callback_query
+    chat_id = update.effective_chat.id
+
+    # Разбиение текста
+    with open(os.path.join(maindir, mainfile)) as f:
+        dirtytext = re.split(r'\[(.*?)\]', f.read())
+
+    posttext = ""
+    for text in dirtytext:
+        # Если картинка
+        if os.path.exists(os.path.join(maindir, text)):
+            if posttext: 
+                context.bot.send_message(chat_id, posttext, parse_mode= "Markdown")
+                posttext = ""
+            context.bot.send_photo(chat_id, photo=open(os.path.join(maindir, text), 'rb'), caption='')
+        # Если гиперссылка
+        elif (text.find('http://') != -1) or (text.find('https://') != -1):
+            text = posttext + ']' + text[0:-1]
+            context.bot.send_message(chat_id, text, parse_mode= "Markdown")    
+            posttext = ""   
+        # Если простой текст
+        else: 
+            posttext += text
+    if posttext: 
+                context.bot.send_message(chat_id, posttext, parse_mode= "Markdown")
+
 # Обработка команд
+def send_buginfo(update, context, bugname):
+    query = update.callback_query
+    chat_id = update.effective_chat.id
+    if bugname not in DBBugs:
+        context.bot.send_message(chat_id, "Информация о насекомом не найдена! \nВ будущем база данных будет расширяться...")
+    else:
+        send_info(update, context, os.path.join(DBBugsPath, bugname), bugname+'.txt')
+
+def send_biteinfo(update, context, bitename):
+    query = update.callback_query
+    chat_id = update.effective_chat.id
+    if bitename not in DBBites:
+        context.bot.send_message(chat_id, "Информация о укусе не найдена! \nВ будущем база данных будет расширяться...")
+    else:
+        send_info(update, context, os.path.join(DBBitesPath, bitename), bitename+'.txt')
+        
 def startCommand(update, context):
     context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(DataDir+'WelcomePage/WelcomeLogo.jpg', 'rb'), caption='')
     
@@ -103,7 +167,7 @@ def process_bug(update, context):
     query = update.callback_query
     chat_id = update.effective_chat.id
     context.bot.send_message(chat_id, 'Пришлите фотографию насекомого крупным планом, как на рисунке ниже:')
-    context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(DataDir+'BugPage/ExImage.jpg', 'rb'), caption='')
+    context.bot.send_photo(chat_id, photo=open(DataDir+'BugPage/ExImage.jpg', 'rb'), caption='')
     return "bug_page"
 
 def process_plant(update, context):
@@ -180,8 +244,9 @@ def askBug(update, context):
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
         Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
+        Result = 'ladybug' #  Заглушка
         # -------
-        context.bot.send_message(chat_id, Result)
+        send_buginfo(update, context, Result)
     return startCommand(update, context)
 
 def askPlant(update, context):
@@ -240,8 +305,9 @@ def askBite(update, context):
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
         Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
+        Result = 'bee' #  Заглушка
         # -------
-        context.bot.send_message(chat_id, Result)
+        send_biteinfo(update, context, Result)
     return startCommand(update, context)
 
 def wrongsupport(update, context):
