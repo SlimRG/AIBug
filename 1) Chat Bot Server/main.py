@@ -27,7 +27,7 @@ WelcomeSpeach = "Здравствуйте! \nЯ помогу вам ориент
 HostSMTP = 'smtp.yandex.ru'
 EmailSMTP = 'bbccaa@ya.ru'
 LoginSMTP = 'bbccaa'
-PasswordSMTP = '******'
+PasswordSMTP = '*****'
 ToEmailsSMTP = ['bbccaa@ya.ru', 'slimrg@ya.ru']
 
 # -- Logging
@@ -161,7 +161,7 @@ def askBug(update, context):
 
     if (len_photo != 0):
         photo_file = context.bot.get_file(update.message.photo[-1].file_id)
-        photo_name = update.message.photo[-1].file_path.split('/')[-1]
+        photo_name = photo_file.file_path.split('/')[-1]
     else:
         photo_file = context.bot.get_file(update.message.document.file_id)
         photo_name = update.message.document.file_name
@@ -191,7 +191,7 @@ def askPlant(update, context):
 
     if (len_photo != 0):
         photo_file = context.bot.get_file(update.message.photo[-1].file_id)
-        photo_name = update.message.photo[-1].file_path.split('/')[-1]
+        photo_name = photo_file.file_path.split('/')[-1]
     else:
         photo_file = context.bot.get_file(update.message.document.file_id)
         photo_name = update.message.document.file_name
@@ -221,7 +221,7 @@ def askBite(update, context):
 
     if (len_photo != 0):
         photo_file = context.bot.get_file(update.message.photo[-1].file_id)
-        photo_name = update.message.photo[-1].file_path.split('/')[-1]
+        photo_name = photo_file.file_path.split('/')[-1]
     else:
         photo_file = context.bot.get_file(update.message.document.file_id)
         photo_name = update.message.document.file_name
