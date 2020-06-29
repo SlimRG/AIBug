@@ -7,7 +7,19 @@ import sys
 import telegram
 import tempfile
 import time
+import json
+import torch
+import torch.nn as nn
+import torch.optim as optim 
+import numpy as np
+import pandas as pd
+import matplotlib.image as mpimg
 
+from tqdm import tqdm
+from torchvision import transforms
+from torch.utils.data import DataLoader, Dataset
+import torch.utils.data as utils
+from efficientnet_pytorch import EfficientNet
 from configparser import ConfigParser
 from PIL import Image
 from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardMarkup, InlineKeyboardButton)
@@ -15,6 +27,32 @@ from telegram.ext import (Updater, CallbackQueryHandler, CommandHandler, Convers
 from datetime import date, datetime
 from threading import Thread
 from pathlib import Path
+
+import warnings
+warnings.filterwarnings("ignore")
+
+class enet(nn.Module):
+    def __init__(self, backbone, out_dim):
+        super(enet, self).__init__()
+        self.enet = EfficientNet.from_pretrained(backbone)
+        
+        for param in self.enet.parameters():
+            param.requires_grad = False
+    
+        #for param in self.myfc.parameters():
+        #    param.requires_grad = True
+        self.l1 = nn.Linear(124416 ,1244 )
+        self.dropout = nn.Dropout(0.5)
+        self.l2 = nn.Linear(1244,out_dim) # 6 is number of classes
+        self.relu = nn.LeakyReLU()
+        
+    def forward(self, input):
+        x = self.enet.extract_features(input)
+        x = x.view(x.size(0),-1)
+        x = self.dropout(self.relu(self.l1(x)))
+        x = self.l2(x)
+        return nn.functional.softmax(x)
+
 
 # --------------------  НАСТРОЙКИ  ---------------------
 # -- Telegram  
@@ -123,6 +161,7 @@ def send_info(update, context, maindir, mainfile):
         # Если простой текст
         else: 
             posttext += text
+
     if posttext: 
                 context.bot.send_message(chat_id, posttext, parse_mode= "Markdown")
 
@@ -243,10 +282,40 @@ def askBug(update, context):
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
-        Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
-        Result = 'ladybug' #  Заглушка
-        # -------
-        send_buginfo(update, context, Result)
+        model_name = 'efficientnet-b3'
+        n_class = 14
+        model = enet(model_name, n_class)
+        model.load_state_dict(torch.load('neuron/bugs/model_bugs_statedict', map_location=torch.device('cpu')))
+        model.eval()
+
+        # Preprocess image
+        image_size = 300
+        # изменения
+        tfms = transforms.Compose([transforms.Resize(image_size), transforms.CenterCrop(image_size), 
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
+        # загрузка как тензор
+        img = tfms(Image.open(os.path.join(temp, 'bug.jpg'))).unsqueeze(0)
+        # Load ImageNet class names
+        labels_map = json.load(open('neuron/bugs/labels_map.json'))
+        new_labels_map = {}
+        for key in labels_map.keys():
+            new_labels_map[labels_map[key]] = key
+        
+        model.eval()
+        with torch.no_grad():
+            img = img.to('cpu')
+            outputs = model(img)[0]
+
+        Results = []
+        StrB = 'Это: \n'
+        for idx in torch.topk(outputs, k=3).indices.squeeze(0).tolist():
+                StrB += str(new_labels_map[idx]) + ": " + str(outputs[idx].item()*100) + "\n"
+                Results.append(new_labels_map[idx])
+
+        context.bot.send_message(chat_id, StrB)
+        send_buginfo(update, context, Results[0])
     return startCommand(update, context)
 
 def askPlant(update, context):
@@ -274,9 +343,40 @@ def askPlant(update, context):
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
-        Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
-        # -------
-        context.bot.send_message(chat_id, Result)
+        model_name = 'efficientnet-b3'
+        n_class = 5
+        model = enet(model_name, n_class)
+        model.load_state_dict(torch.load('neuron/plants/model_plants_statedict', map_location=torch.device('cpu')))
+        model.eval()
+
+        # Preprocess image
+        image_size = 300
+        # изменения
+        tfms = transforms.Compose([transforms.Resize(image_size), transforms.CenterCrop(image_size), 
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
+        # загрузка как тензор
+        img = tfms(Image.open(os.path.join(temp, 'plant.jpg'))).unsqueeze(0)
+        # Load ImageNet class names
+        labels_map = json.load(open('neuron/plants/labels_map_plants.json'))
+        new_labels_map = {}
+        for key in labels_map.keys():
+            new_labels_map[labels_map[key]] = key
+        
+        model.eval()
+        with torch.no_grad():
+            img = img.to('cpu')
+            outputs = model(img)[0]
+
+        Results = []
+        StrB = 'Это: \n'
+        for idx in torch.topk(outputs, k=3).indices.squeeze(0).tolist():
+                StrB += str(new_labels_map[idx]) + ": " + str(outputs[idx].item()*100) + "\n"
+                Results.append(new_labels_map[idx])
+
+        context.bot.send_message(chat_id, StrB)
+        send_buginfo(update, context, Results[0])
     return startCommand(update, context)
 
 def askBite(update, context):
@@ -304,10 +404,40 @@ def askBite(update, context):
             return wrongimg(update, context)
         context.bot.send_message(chat_id, "Спасибо! \nФото получено. \nСобираю информацию...")
         # Обработка фото
-        Result = 'Сервис обработки фото временно недоступен, попробуйте позже...'
-        Result = 'bee' #  Заглушка
-        # -------
-        send_biteinfo(update, context, Result)
+        model_name = 'efficientnet-b3'
+        n_class = 4
+        model = enet(model_name, n_class)
+        model.load_state_dict(torch.load('neuron/bites/model_bites_statedict', map_location=torch.device('cpu')))
+        model.eval()
+
+        # Preprocess image
+        image_size = 300
+        # изменения
+        tfms = transforms.Compose([transforms.Resize(image_size), transforms.CenterCrop(image_size), 
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),])
+        # загрузка как тензор
+        img = tfms(Image.open(os.path.join(temp, 'bite.jpg'))).unsqueeze(0)
+        # Load ImageNet class names
+        labels_map = json.load(open('neuron/bites/labels_map.json'))
+        new_labels_map = {}
+        for key in labels_map.keys():
+            new_labels_map[labels_map[key]] = key
+        
+        model.eval()
+        with torch.no_grad():
+            img = img.to('cpu')
+            outputs = model(img)[0]
+
+        Results = []
+        StrB = 'Это: \n'
+        for idx in torch.topk(outputs, k=3).indices.squeeze(0).tolist():
+                StrB += str(new_labels_map[idx]) + ": " + str(outputs[idx].item()*100) + "\n"
+                Results.append(new_labels_map[idx])
+
+        context.bot.send_message(chat_id, StrB)
+        send_biteinfo(update, context, Results[0])
     return startCommand(update, context)
 
 def wrongsupport(update, context):
